@@ -1,0 +1,23 @@
+# Secretos y archivos sensibles
+.env
+*.pem
+*.key
+*.crt
+*-credentials.json
+*_token.txt
+
+# Datos y volúmenes de Docker
+docker-data/
+volumes/
+backups/
+
+# Logs del sistema
+*.log
+
+# Configuración personal de Git
+.git/
+
+# Archivos temporales
+*.tmp
+*.swp
+*~

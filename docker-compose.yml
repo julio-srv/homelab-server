@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Portainer - Panel de administración de Docker
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
@@ -12,6 +13,15 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
 
+  # Cloudflare Tunnel - Exposición pública de servicios
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    environment:
+      - CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}  # Se carga desde .env
+
 volumes:
   portainer_data:
-    external: true

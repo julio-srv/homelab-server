@@ -509,3 +509,281 @@ El servidor está completamente funcional, accesible desde cualquier lugar media
 - **Cloudflare Tunnel** → acceso web a Portainer y futuros servicios, con dominio propio y SSL.
 
 El sistema es estable, consume pocos recursos y está preparado para crecer con nuevos contenedores.
+---
+
+## 18. Despliegue de Servicios (Fase 2)
+
+*Esta sección documenta la implementación de servicios adicionales, la configuración del proxy inverso y la exposición pública mediante Cloudflare Tunnel.*
+
+### 18.1. Proxy Inverso con Nginx Proxy Manager (NPM)
+
+Aunque finalmente optamos por exponer los servicios directamente con Cloudflare Tunnel, instalamos NPM como una herramienta de respaldo para futuros proyectos que requieran una gestión más granular de subdominios y certificados.
+
+#### 18.1.1. Instalación limpia (recomendada)
+
+Se realizó una reinstalación completa para evitar errores previos.
+
+**Estructura de carpetas:**
+
+```
+/home/serv/docker/npm/
+├── docker-compose.yml
+├── data/
+│   └── mysql/
+└── letsencrypt/
+```
+
+**Archivo `docker-compose.yml` final:**
+
+```yaml
+services:
+  app:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'
+    environment:
+      DB_MYSQL_HOST: "db"
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: "npm"
+      DB_MYSQL_PASSWORD: "CAMBIAR_ESTA_PASSWORD"
+      DB_MYSQL_NAME: "npm"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    depends_on:
+      - db
+    networks:
+      - proxy_network
+
+  db:
+    image: 'jc21/mariadb-aria:10.11.5-innodb'
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 'CAMBIAR_ESTA_PASSWORD'
+      MYSQL_DATABASE: 'npm'
+      MYSQL_USER: 'npm'
+      MYSQL_PASSWORD: 'CAMBIAR_ESTA_PASSWORD'   # Debe coincidir con DB_MYSQL_PASSWORD
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - proxy_network
+
+networks:
+  proxy_network:
+    external: true
+```
+
+> ⚠️ **Nota de seguridad:** reemplazá `CAMBIAR_ESTA_PASSWORD` por contraseñas propias y fuertes antes de desplegar. Nunca subas contraseñas reales a un repositorio, ni siquiera privado.
+
+**Comandos de despliegue:**
+
+```bash
+# Crear la red Docker (si no existe)
+docker network create proxy_network
+
+# Levantar los contenedores
+cd ~/docker/npm
+docker compose up -d
+```
+
+**Acceso:**
+
+- Interfaz web: `http://IP_LOCAL:81`
+- Credenciales por defecto: `admin@example.com` / `changeme`
+- **Importante:** Cambiar la contraseña al primer inicio.
+
+#### 18.1.2. Problemas y soluciones durante la instalación
+
+| Problema | Solución |
+|----------|----------|
+| `version: '3'` obsoleto | Eliminar la línea `version` del YAML. |
+| Error `not found` para `mariadb-aria:10.6` | Usar `jc21/mariadb-aria:10.11.5-innodb`. |
+| `network proxy_network declared as external, but could not be found` | Crear la red con `docker network create proxy_network`. |
+| `Access denied for user 'npm'` | Borrar volúmenes con `docker compose down -v`, eliminar carpetas `data/` y `letsencrypt/`, y recrear. |
+| Fecha incorrecta del sistema (`x509: certificate has expired`) | Sincronizar con NTP: `sudo timedatectl set-ntp true`. |
+
+---
+
+### 18.2. Sitio Web Estático con Nginx
+
+Se desplegó un contenedor Nginx para servir archivos HTML/CSS/JS desde una carpeta montada.
+
+#### 18.2.1. Creación del contenedor
+
+```bash
+# Crear la carpeta del sitio
+mkdir -p /home/serv/mi_web
+echo '<h1>¡Mi servidor funciona!</h1>' > /home/serv/mi_web/index.html
+
+# Desplegar el contenedor
+docker run -d \
+  --name mi-sitio-web \
+  --restart unless-stopped \
+  -v /home/serv/mi_web:/usr/share/nginx/html:ro \
+  -p 8080:80 \
+  --network proxy_network \
+  nginx:alpine
+```
+
+**Acceso local:** `http://IP_LOCAL:8080`
+
+#### 18.2.2. Problema: Error 403 Forbidden
+
+**Causa:** El archivo `index.html` tenía permisos `-rw-------` (600), impidiendo que Nginx (usuario `nginx`) pudiera leerlo.
+
+**Solución:**
+
+```bash
+chmod 644 /home/serv/mi_web/index.html
+docker restart mi-sitio-web
+```
+
+**Verificación:**
+
+```bash
+docker exec -it mi-sitio-web cat /usr/share/nginx/html/index.html
+```
+
+#### 18.2.3. Subir contenido propio desde PC
+
+Desde tu PC local:
+
+```bash
+scp -r /ruta/local/mi_proyecto_web/* serv@IP_LOCAL:/home/serv/mi_web/
+```
+
+En el servidor (ajustar permisos):
+
+```bash
+chmod -R 644 /home/serv/mi_web/*
+chmod 755 /home/serv/mi_web
+docker restart mi-sitio-web
+```
+
+---
+
+### 18.3. Exposición Pública con Cloudflare Tunnel
+
+Se utilizó el túnel existente para exponer los servicios sin abrir puertos en el router.
+
+#### 18.3.1. Túnel activo
+
+El túnel ya configurado en la sección 11 se reutilizó, agregando las nuevas rutas de ingreso (`ingress`) para los servicios adicionales, apuntando cada una a su puerto interno correspondiente y devolviendo `http_status:404` para cualquier host no reconocido.
+
+#### 18.3.2. Agregar subdominios
+
+**Pasos desde Cloudflare Zero Trust:**
+
+1. Ir a **Networks → Tunnels**.
+2. Seleccionar el túnel activo.
+3. En **"Public Hostnames"**, hacer clic en **"Add a public hostname"**.
+
+| Subdominio | Servicio | URL interna | TLS |
+|------------|----------|-------------|-----|
+| `portainer.tudominio.com` | Portainer | `http://IP_LOCAL:9000` | Off |
+| `www.tudominio.com` | Sitio web | `http://IP_LOCAL:8080` | Off |
+
+**Nota:** Cloudflare genera automáticamente el registro DNS y el certificado SSL.
+
+**Resultado:** Acceso público a Portainer y al sitio web estático mediante HTTPS, sin abrir puertos en el router.
+
+---
+
+### 18.4. Gestión de Credenciales de Portainer
+
+**Problema:** Contraseña de administrador perdida.
+
+**Solución (restablecimiento):**
+
+```bash
+docker exec -it portainer /portainer -reset-admin-password
+# (Introducir y confirmar nueva contraseña)
+docker restart portainer
+```
+
+**Alternativa:** Crear un nuevo administrador:
+
+```bash
+docker exec -it portainer /portainer -admin-password="NuevaPass" -admin-user="nuevo_admin"
+```
+
+---
+
+### 18.5. Estado Actualizado del Proyecto (Fase 2)
+
+| Componente | Estado | Acceso |
+|------------|--------|--------|
+| **Hardware** | Sin batería, con cargador | Consumo ~15W |
+| **Debian 12** | IP fija, firewall UFW activo | SSH local |
+| **ZeroTier** | Activo | `ssh julio@192.168.192.xxx` |
+| **Docker** | Instalado | Grupo `docker` para el usuario |
+| **Portainer** | Contenedor corriendo | `https://portainer.tudominio.com` |
+| **Nginx Proxy Manager** | Instalado (respaldo) | `http://IP_LOCAL:81` |
+| **Sitio web estático** | Contenedor `mi-sitio-web` | `https://www.tudominio.com` |
+| **Cloudflare Tunnel** | Activo | Maneja múltiples subdominios |
+| **Dominio** | Dominio gratuito | Apunta a Cloudflare |
+
+---
+
+### 18.6. Comandos Útiles para la Fase 2
+
+```bash
+# Reiniciar servicios
+docker restart portainer mi-sitio-web cloudflared
+
+# Ver logs del sitio web
+docker logs mi-sitio-web -f
+
+# Ver logs del túnel
+docker logs cloudflared --tail 50
+
+# Transferir archivos al sitio (desde PC)
+scp -r /ruta/local/web/* serv@IP_LOCAL:/home/serv/mi_web/
+
+# Ajustar permisos en el servidor
+chmod -R 644 /home/serv/mi_web/*
+chmod 755 /home/serv/mi_web
+docker restart mi-sitio-web
+
+# Probar resolución DNS
+dig portainer.tudominio.com @1.1.1.1
+```
+
+---
+
+### 18.7. Registro de Errores y Soluciones (Fase 2)
+
+| Error | Causa | Solución |
+|-------|-------|----------|
+| `403 Forbidden` en sitio web | Permisos `600` en `index.html` | `chmod 644 /home/serv/mi_web/index.html` |
+| `Internal Error` en SSL de NPM | Fecha del sistema desfasada | `sudo timedatectl set-ntp true` |
+| `Access denied` en base de datos NPM | Contraseñas no coincidentes | Usar `docker compose down -v` y recrear con contraseñas correctas |
+| El dominio no resuelve (`NXDOMAIN`) | Registro DNS no creado | Agregar CNAME o usar el túnel directamente |
+| Certificado SSL falla (desafío HTTP) | Puerto 80 no accesible | Usar desafío DNS con token de API de Cloudflare |
+| Error al pegar token en NPM | Token mal formateado | Crear archivo manual en `/etc/letsencrypt/credentials/credentials-manual` |
+
+---
+
+### 18.8. Próximos Pasos (Fase 3)
+
+- [ ] Añadir **Nextcloud** (nube personal).
+- [ ] Desplegar **Jellyfin** (servidor multimedia).
+- [ ] Configurar **Gitea** (git privado).
+- [ ] Centralizar todos los servicios en un `docker-compose.yml` único.
+- [ ] Automatizar backups de volúmenes y configuraciones.
+- [ ] Subir toda la documentación a GitHub con el repositorio actualizado.
+
+---
+
+### 18.9. Conclusión de la Fase 2
+
+El servidor ha evolucionado de ser un simple host de Portainer a una plataforma con múltiples servicios accesibles desde Internet. La combinación de **ZeroTier** (acceso SSH) y **Cloudflare Tunnel** (acceso web) proporciona una solución robusta, segura y sin necesidad de abrir puertos en el router.
+
+La documentación detallada de cada paso, junto con el registro de errores y soluciones, garantiza que el proyecto sea **replicable y mantenible** a largo plazo.
+
+---
+
+**Fin de la documentación de la Fase 2.**

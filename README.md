@@ -1,6 +1,6 @@
 # 📘 Manual de Configuración del Servidor Doméstico - Netbook Conectar Igualdad
 
-*Última actualización: 26 de agosto de 2026*
+*Última actualización: 5 de septiembre de 2026*
 
 ## Índice
 
@@ -21,6 +21,7 @@
 15. [Próximos Pasos (Ampliaciones Futuras)](#15-próximos-pasos-ampliaciones-futuras)
 16. [Seguridad y Buenas Prácticas](#16-seguridad-y-buenas-prácticas)
 17. [Conclusión](#17-conclusión)
+18. [Despliegue de Servicios (Fase 2)](#18-despliegue-de-servicios-fase-2)
 
 ---
 
@@ -38,14 +39,14 @@ Este proyecto consiste en convertir una netbook del gobierno (modelo Gen 4/5) en
 
 ## 2. Hardware Utilizado
 
-| Componente | Especificación |
-|---|---|
-| Modelo | Netbook Conectar Igualdad (Gen 4 o 5) |
-| Procesador | Intel Celeron / Atom (64 bits) |
-| RAM | 4 GB DDR3 |
-| Almacenamiento | Disco duro HDD de 500 GB (o eMMC) |
-| Batería | Retirada físicamente para evitar sobrecalentamiento y riesgos (se usa solo con cargador) |
-| Conexión | WiFi y Ethernet (se usa cable para mayor estabilidad) |
+| Componente     | Especificación                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| Modelo         | Netbook Conectar Igualdad (Gen 4 o 5)                                                    |
+| Procesador     | Intel Celeron / Atom (64 bits)                                                           |
+| RAM            | 4 GB DDR3                                                                                |
+| Almacenamiento | Disco duro HDD de 500 GB (o eMMC)                                                        |
+| Batería        | Retirada físicamente para evitar sobrecalentamiento y riesgos (se usa solo con cargador) |
+| Conexión       | WiFi y Ethernet (se usa cable para mayor estabilidad)                                    |
 
 > **Decisión clave:** Se retiró la batería para evitar inflado, reducir temperatura interna y alargar la vida útil del hardware.
 
@@ -158,18 +159,18 @@ curl -s https://install.zerotier.com | sudo bash
 2. Anotar el Network ID (ej: `a1b2c3d4e5f6g7h8`).
 3. En el servidor, unirse a la red:
 
-   ```bash
-   sudo zerotier-cli join a1b2c3d4e5f6g7h8
-   ```
+```bash
+sudo zerotier-cli join a1b2c3d4e5f6g7h8
+```
 
 4. Autorizar el dispositivo desde el panel web de ZeroTier (marcar como "Authorized").
 5. Verificar la IP asignada:
 
-   ```bash
-   sudo zerotier-cli listnetworks
-   ```
+```bash
+sudo zerotier-cli listnetworks
+```
 
-   Aparecerá una IP como `192.168.192.xxx`.
+Aparecerá una IP como `192.168.192.xxx`.
 
 ### 4.3. Conectarse por SSH vía ZeroTier
 
@@ -273,16 +274,16 @@ El dominio aparece como "Activo" en el panel de Cloudflare. Está listo para ser
 
 ## 7. Estado del Proyecto (primera fase)
 
-| Componente | Estado |
-|---|---|
-| Hardware | Funcionando sin batería, con cargador. |
-| Sistema Operativo | Debian 12 instalado y actualizado. |
-| Red | IP fija configurada, firewall activo. |
-| Acceso SSH | Funcionando correctamente. |
-| Docker | Instalado y funcionando. |
-| Portainer | Accesible en `http://IP_LOCAL:9000`. |
-| Dominio | `miservidor.de5.net` (o tu dominio) registrado y apuntando a Cloudflare. |
-| Cloudflare Tunnel | Pendiente de instalar y configurar. |
+| Componente        | Estado                                                                   |
+| ----------------- | ------------------------------------------------------------------------ |
+| Hardware          | Funcionando sin batería, con cargador.                                   |
+| Sistema Operativo | Debian 12 instalado y actualizado.                                       |
+| Red               | IP fija configurada, firewall activo.                                    |
+| Acceso SSH        | Funcionando correctamente.                                               |
+| Docker            | Instalado y funcionando.                                                 |
+| Portainer         | Accesible en `http://IP_LOCAL:9000`.                                     |
+| Dominio           | `miservidor.de5.net` (o tu dominio) registrado y apuntando a Cloudflare. |
+| Cloudflare Tunnel | Pendiente de instalar y configurar.                                      |
 
 ---
 
@@ -314,8 +315,8 @@ A partir de este punto, la próxima fase consistió en:
 
 🗂️
 
-| Error | Solución |
-|---|---|
+| Error                                                                 | Solución                                                                                                                                 |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `Failed to write the certificate` al hacer `cloudflared tunnel login` | Se descargará manualmente el `cert.pem` usando el enlace proporcionado y se copiará a `~/.cloudflared/cert.pem` (pendiente de ejecutar). |
 
 > ✅ **Conclusión parcial:** El servidor está sólidamente instalado y configurado. Todas las herramientas base están listas. La documentación refleja fielmente el proceso seguido. El siguiente paso es completar la instalación de Cloudflare Tunnel para habilitar el acceso público.
@@ -359,18 +360,18 @@ ERR error="Unable to reach the origin service... dial tcp [::1]:9000: connect: c
 
 1. Se detuvo y eliminó el contenedor con errores:
 
-   ```bash
-   docker stop cloudflared
-   docker rm cloudflared
-   ```
+```bash
+docker stop cloudflared
+docker rm cloudflared
+```
 
 2. Se volvió a crear el contenedor con el flag `--network host` y el mismo token.
 3. Se verificaron los logs para confirmar que el túnel se registraba correctamente y no mostraba errores de conexión.
 4. Se reinició el contenedor de Portainer para desbloquear la interfaz web:
 
-   ```bash
-   docker restart portainer
-   ```
+```bash
+docker restart portainer
+```
 
 ### 11.3. Configuración en el Panel de Cloudflare (Zero Trust)
 
@@ -411,29 +412,29 @@ docker rm cloudflared
 
 ## 12. Estado Final del Proyecto (Actualizado)
 
-| Componente | Estado |
-|---|---|
-| Hardware | Funcionando sin batería, con cargador. |
-| Sistema Operativo | Debian 12 instalado y actualizado. |
-| Red | IP fija configurada, firewall activo. |
-| Acceso SSH (LAN) | Funcionando en `192.168.1.100`. |
-| Acceso SSH (ZeroTier) | Funcionando en `192.168.192.xxx`. |
-| Docker | Instalado y funcionando. |
-| Portainer | Accesible en `http://IP_LOCAL:9000` y `http://IP_ZEROTIER:9000`. |
-| Dominio | `xxxx.xxx.com` apuntando a Cloudflare. |
-| Cloudflare Tunnel | Activo, enrutando tráfico a Portainer en `xxxx.xxx.com`. |
+| Componente            | Estado                                                           |
+| --------------------- | ---------------------------------------------------------------- |
+| Hardware              | Funcionando sin batería, con cargador.                           |
+| Sistema Operativo     | Debian 12 instalado y actualizado.                               |
+| Red                   | IP fija configurada, firewall activo.                            |
+| Acceso SSH (LAN)      | Funcionando en `192.168.1.100`.                                  |
+| Acceso SSH (ZeroTier) | Funcionando en `192.168.192.xxx`.                                |
+| Docker                | Instalado y funcionando.                                         |
+| Portainer             | Accesible en `http://IP_LOCAL:9000` y `http://IP_ZEROTIER:9000`. |
+| Dominio               | `xxxx.xxx.com` apuntando a Cloudflare.                           |
+| Cloudflare Tunnel     | Activo, enrutando tráfico a Portainer en `xxxx.xxx.com`.         |
 
 ---
 
 ## 13. Accesos y Credenciales
 
-| Servicio | URL / IP | Puerto | Notas |
-|---|---|---|---|
-| SSH (LAN) | `192.168.1.100` | 22 | Usuario: julio |
-| SSH (ZeroTier) | `192.168.192.xxx` | 22 | Usuario: julio |
-| Portainer (Local) | `http://192.168.1.100` | 9000 | |
-| Portainer (ZeroTier) | `http://192.168.192.xxx` | 9000 | |
-| Portainer (Público) | `https://xxxx.xxx.com` | 443 | Requiere usuario y contraseña creados al primer inicio |
+| Servicio             | URL / IP                 | Puerto | Notas                                                  |
+| -------------------- | ------------------------ | ------ | ------------------------------------------------------ |
+| SSH (LAN)            | `192.168.1.100`          | 22     | Usuario: julio                                         |
+| SSH (ZeroTier)       | `192.168.192.xxx`        | 22     | Usuario: julio                                         |
+| Portainer (Local)    | `http://192.168.1.100`   | 9000   |                                                         |
+| Portainer (ZeroTier) | `http://192.168.192.xxx` | 9000   |                                                         |
+| Portainer (Público)  | `https://xxxx.xxx.com`   | 443    | Requiere usuario y contraseña creados al primer inicio |
 
 ---
 
@@ -509,6 +510,7 @@ El servidor está completamente funcional, accesible desde cualquier lugar media
 - **Cloudflare Tunnel** → acceso web a Portainer y futuros servicios, con dominio propio y SSL.
 
 El sistema es estable, consume pocos recursos y está preparado para crecer con nuevos contenedores.
+
 ---
 
 ## 18. Despliegue de Servicios (Fase 2)
